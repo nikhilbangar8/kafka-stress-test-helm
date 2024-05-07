@@ -1,0 +1,35 @@
+---
+replicaCount: 0
+
+image:
+  repository: python
+  pullPolicy: IfNotPresent
+  tag: "3.8-slim"
+
+script:
+  messageSize: 512
+  numThreads: 10
+  kafka_server: "kafka-poc.tech:9094"
+  topic_name: "topic-a"
+
+serviceAccount:
+  create: false
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources: {}
+
+nodeSelector:
+  node_pool: "gitlab-runner-node-pool"
+
+tolerations: []
+
+affinity: {}

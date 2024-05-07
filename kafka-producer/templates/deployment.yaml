@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kafka-producer.fullname" . }}
+  labels:
+    {{- include "kafka-producer.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "kafka-producer.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kafka-producer.selectorLabels" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "kafka-producer.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              pip install confluent-kafka &&
+              python /scripts/producer.py
+          volumeMounts:
+            - name: script-volume
+              mountPath: /scripts
+          env:
+            - name: KAFKA_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: kafka-credentials
+                  key: username
+            - name: KAFKA_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: kafka-credentials
+                  key: password
+            - name: MESSAGE_SIZE
+              value: "{{ .Values.script.messageSize }}"
+            - name: NUM_THREADS
+              value: "{{ .Values.script.numThreads }}"
+            - name: KAFKA_SERVER
+              value: "{{ .Values.script.kafka_server }}"
+            - name: TOPIC_NAME
+              value: "{{ .Values.script.topic_name }}"
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: script-volume
+          configMap:
+            name: {{ include "kafka-producer.fullname" . }}

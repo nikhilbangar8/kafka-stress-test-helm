@@ -1,0 +1,34 @@
+---
+replicaCount: 10
+
+image:
+  repository: python
+  pullPolicy: IfNotPresent
+  tag: "3.8-slim"
+
+script:
+  kafka_server: "kafka-poc.tech:9094"
+  topic_name: "topic-a"
+  consumer_group_id: nikhil-stress-test-consumer
+
+serviceAccount:
+  create: false
+  name: ""
+
+podAnnotations: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+resources: {}
+
+nodeSelector:
+  node_pool: "gitlab-runner-node-pool"
+
+tolerations: []
+
+affinity: {}

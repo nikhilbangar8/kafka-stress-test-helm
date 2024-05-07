@@ -1,0 +1,76 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kafka-producer.fullname" . }}
+data:
+  producer.py: |
+    import os
+    import json
+    import threading
+    from confluent_kafka import Producer
+
+    # Configuration for Kafka Producer
+    sasl_user = os.getenv('KAFKA_USERNAME')
+    sasl_password = os.getenv('KAFKA_PASSWORD')
+    bootstrap_servers = os.getenv('KAFKA_SERVER')
+    topic_name = os.getenv('TOPIC_NAME')
+    num_threads = int(os.getenv('NUM_THREADS'))
+    message_size = int(os.getenv('MESSAGE_SIZE', '1024'))  # Default message size of 1KB
+
+    def generate_message(size):
+        """Generates a message of the given size with dummy data."""
+        return json.dumps({"data": "x" * (size - 20)}).encode('utf-8')  # Subtract 20 to account for JSON overhead
+
+    def kafka_producer(topic, kafka_config):
+        """Sends data to a Kafka topic."""
+        producer = Producer(kafka_config)
+        
+        def acked(err, msg):
+            if err is not None:
+                print(f"Failed to deliver message: {err}")
+            else:
+                print(f"Message {msg.offset()} delivered to {msg.topic()} [{msg.partition()}]")
+
+        # Produce messages indefinitely
+        while True:
+            data = generate_message(message_size)
+            try:
+                producer.produce(topic, data, callback=acked)
+            except BufferError:
+                print("Buffer full, flushing and retrying...")
+                producer.flush()
+                producer.produce(topic, data, callback=acked)
+            producer.poll(0)
+        producer.flush()
+
+    def worker_thread(topic, kafka_config):
+        """Thread worker function to produce messages to a Kafka topic."""
+        kafka_producer(topic, kafka_config)
+        print("Started producing messages to Kafka")
+
+    def main(topic, num_threads, kafka_config):
+        """Main function to distribute the task of sending data to Kafka across multiple threads."""
+        threads = []
+
+        for i in range(num_threads):
+            thread = threading.Thread(target=worker_thread, args=(topic, kafka_config))
+            threads.append(thread)
+            thread.start()
+
+        # Wait for all threads to complete (they won't unless manually stopped)
+        for thread in threads:
+            thread.join()
+
+        print("All threads have finished execution.")
+
+    if __name__ == "__main__":
+        kafka_config = {
+            'bootstrap.servers': bootstrap_servers,
+            'client.id': 'threading-kafka-producer',
+            'security.protocol': 'SASL_PLAINTEXT',
+            'sasl.mechanism': 'SCRAM-SHA-512',
+            'sasl.username': sasl_user,
+            'sasl.password': sasl_password,
+            'acks': '1'
+        }
+        main(topic_name, num_threads, kafka_config)
